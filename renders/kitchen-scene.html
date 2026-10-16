@@ -164,7 +164,6 @@ box(-3, 3.6, 0, CEIL, -0.1, 0, M.wall, { cast: false });              // back wa
 box(3.6, 3.7, 0, CEIL, -0.1, 6, M.wall, { cast: false });             // right wall
 box(-3, 3.7, CEIL, CEIL + 0.05, -0.1, 6, M.ceiling, { cast: false }); // ceiling
 box(-0.5, 0, 0, CEIL, 0, 0.72, M.pier);              // left pier
-box(2.92, 3.6, 0, CEIL, 2.76, 3.1, M.pier);          // right pier
 
 // ---------- left tall column (x 0..0.6): drawers + oven at eye level + built-in microwave ----------
 box(0, 0.6, 0, 0.1, 0, 0.54, M.plinth);
@@ -289,50 +288,41 @@ for (const [zA, zB] of [[1.05, 1.65], [1.65, 2.25]]) {
 }
 box(2.995, 3.03, 0.92, 0.97, 1.05, 2.25, M.gola);
 box(2.995, 3.03, 1.92, 1.97, 1.05, 2.25, M.gola);
-// built-in coffee machine in second column (replaces part of middle door)
+// glass vitrine at the END of the run: glass door on the end face (z = 2.76), facing the room
 {
-  const zA = 1.65 + G, zB = 2.25 - G, y0 = 1.0, y1 = 1.455;
-  box(2.97, 2.985, y0, y1, zA, zB, M.blackGlass);
-  box(2.968, 2.97, y0 + 0.05, y0 + 0.21, zA + 0.2, zB - 0.2, M.steel); // spout block
-  box(2.966, 2.968, y1 - 0.06, y1 - 0.035, zA + 0.08, zA + 0.3, M.displayW, { cast: false });
-  box(2.966, 2.97, y1 - 0.02, y1 - 0.012, zA + 0.02, zB - 0.02, M.steel, { cast: false });
-}
-
-// glass vitrine z 2.25..2.76: graphite glass in black aluminium frame
-{
-  const zA = 2.25, zB = 2.76, y0 = 0.1, y1 = TY;
-  box(3.0, 3.6, 0, 0.1, zA, zB, M.plinth);
-  box(3.04, 3.6, y0, y1, zA, zA + 0.018, M.vitBack);        // inner sides
-  box(3.04, 3.6, y0, y1, zB - 0.018, zB, M.vitBack);
-  box(3.58, 3.6, y0, y1, zA, zB, M.vitBack);                // back
-  box(3.04, 3.6, y0, y0 + 0.018, zA, zB, M.vitBack);
-  box(3.04, 3.6, y1 - 0.018, y1, zA, zB, M.vitBack);
-  box(2.98, 3.04, y1, CEIL, zA, zB, M.gloss, { cast: false });
+  const zA = 2.25, zB = 2.76, xA = 3.0, xB = 3.6, y0 = 0.1, y1 = TY;
+  box(xA, xB, 0, 0.1, zA, zB - 0.04, M.plinth);
+  box(xA - 0.02, xA + 0.018, y0, CEIL, zA, zB, M.gloss);          // gloss side panel toward kitchen front line
+  box(xA + 0.018, xB, y0, y1, zA, zA + 0.018, M.vitBack);           // back (shared with tall column)
+  box(xB - 0.018, xB, y0, y1, zA, zB, M.vitBack);
+  box(xA + 0.018, xB, y0, y0 + 0.018, zA, zB - 0.02, M.vitBack);
+  box(xA + 0.018, xB, y1 - 0.018, y1, zA, zB - 0.02, M.vitBack);
+  box(xA, xB, y1, CEIL, zB - 0.04, zB, M.gloss, { cast: false });
   for (let k = 1; k <= 5; k++) {
     const y = y0 + k * (y1 - y0) / 6;
-    box(3.06, 3.57, y, y + 0.008, zA + 0.02, zB - 0.02, M.shelfGlass, { cast: false });
-    // led line at front edge of each shelf
-    box(3.06, 3.065, y - 0.006, y, zA + 0.03, zB - 0.03, M.led, { cast: false });
-    const pl = new THREE.PointLight(0xffe2b8, 0.12, 0.6, 2); pl.position.set(3.2, y - 0.04, (zA + zB) / 2); scene.add(pl);
+    box(xA + 0.02, xB - 0.02, y, y + 0.008, zA + 0.02, zB - 0.04, M.shelfGlass, { cast: false });
+    box(xA + 0.03, xB - 0.03, y - 0.006, y, zB - 0.05, zB - 0.045, M.led, { cast: false });
+    const pl = new THREE.PointLight(0xffe2b8, 0.12, 0.6, 2); pl.position.set((xA + xB) / 2, y - 0.04, zB - 0.15); scene.add(pl);
   }
-  // some glassware on shelves
   const glassObj = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transparent: true, opacity: 0.25, depthWrite: false });
   for (let k = 0; k <= 4; k++) {
     const y = y0 + k * (y1 - y0) / 6 + (k ? 0.008 : 0.018);
     for (let j = 0; j < 3; j++) {
       const r = 0.032, h = 0.1 + (k % 2) * 0.06;
       const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.8, h, 24, 1, true), glassObj);
-      c.position.set(3.3 + (j % 2) * 0.1, y + h / 2, zA + 0.11 + j * 0.14); scene.add(c);
+      c.position.set(xA + 0.12 + j * 0.17, y + h / 2, zA + 0.2 + (j % 2) * 0.1); scene.add(c);
     }
   }
-  // door: graphite glass + black frame
-  const fz0 = zA + G, fz1 = zB - G, fx0 = 2.978, fx1 = 3.0, f = 0.022;
+  // door: graphite glass in black aluminium frame
+  const fx0 = xA + 0.02 + G, fx1 = xB - G, fz0 = zB - 0.02, fz1 = zB, f = 0.022;
   box(fx0, fx1, y0, y0 + f, fz0, fz1, M.alu);
   box(fx0, fx1, y1 - G - f, y1 - G, fz0, fz1, M.alu);
-  box(fx0, fx1, y0, y1 - G, fz0, fz0 + f, M.alu);
-  box(fx0, fx1, y0, y1 - G, fz1 - f, fz1, M.alu);
-  box(2.986, 2.99, y0 + f, y1 - G - f, fz0 + f, fz1 - f, M.glass, { cast: false });
+  box(fx0, fx0 + f, y0, y1 - G, fz0, fz1, M.alu);
+  box(fx1 - f, fx1, y0, y1 - G, fz0, fz1, M.alu);
+  box(fx0 + f, fx1 - f, y0 + f, y1 - G - f, fz0 + 0.008, fz0 + 0.012, M.glass, { cast: false });
 }
+// gloss end-cap for the tall column side facing the vitrine line
+box(2.98, 3.0, 0.1, TY - G, 2.25 + G, 2.25 + 0.002, M.gloss);
 
 // ---------- decor ----------
 {
@@ -372,7 +362,7 @@ const fill = new THREE.RectAreaLight(0xffffff, 0.35, 4, 2.4); fill.position.set(
 // ---------- camera ----------
 const cam = new THREE.PerspectiveCamera(44, W / H, 0.05, 50);
 if (VIEW === 'side') { cam.position.set(0.3, 1.5, 3.9); cam.lookAt(2.6, 1.2, 1.2); }
-else { cam.position.set(0.75, 1.45, 5.7); cam.lookAt(1.75, 1.3, 1.0); }
+else { cam.position.set(0.55, 1.45, 6.0); cam.lookAt(1.85, 1.3, 1.1); }
 cam.updateProjectionMatrix();
 
 renderer.render(scene, cam);
