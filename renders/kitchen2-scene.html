@@ -1,0 +1,327 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#000;overflow:hidden}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+// Kitchen proposal for a 4170 x 2770 mm wall with a wall-hung gas boiler at the top left.
+// Straight run: base + uppers to ceiling (boiler hidden in the left upper), tall oak columns on the right
+// (oven at eye level + microwave, integrated fridge), island under the three pendants.
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+
+const q = new URLSearchParams(location.search);
+const W = +(q.get('w') || 2400), H = +(q.get('h') || 1600);
+const VIEW = q.get('view') || 'main';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H); renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.92;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+RectAreaLightUniformsLib.init();
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+const ENV = pmrem.fromScene(new RoomEnvironment(), 0.03).texture;
+scene.environment = ENV; scene.environmentIntensity = 0.35;
+scene.background = new THREE.Color(0xe9e6e1);
+
+// ---------- textures ----------
+function canvasTex(size, draw, srgb = true) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+
+// natural oak veneer, vertical grain (texture covers 0.6 x 0.6 m)
+function oakDraw(base, seed) {
+  return (g, s) => {
+    g.fillStyle = base; g.fillRect(0, 0, s, s);
+    const r = rng(seed);
+    for (let i = 0; i < 420; i++) {
+      const x = r() * s, w = 0.5 + r() * 2.5, a = 0.04 + r() * 0.12, d = r() < 0.5;
+      g.strokeStyle = d ? `rgba(90,58,30,${a})` : `rgba(235,205,160,${a * 0.8})`; g.lineWidth = w;
+      g.beginPath(); let xx = x; g.moveTo(xx, 0);
+      for (let y = 0; y <= s; y += 16) { xx += (r() - 0.5) * 1.6; g.lineTo(xx, y); } g.stroke();
+    }
+    for (let k = 0; k < 6; k++) { // cathedral figure
+      const cx = r() * s, cy = r() * s; g.strokeStyle = `rgba(100,65,35,${0.08 + r() * 0.08})`;
+      for (let j = 1; j < 9; j++) { g.lineWidth = 1 + r(); g.beginPath(); g.ellipse(cx, cy, j * 5, j * 38, 0, 0, Math.PI * 2); g.stroke(); }
+    }
+  };
+}
+const oakTex = canvasTex(1024, oakDraw('#b48a5c', 5));
+
+// white quartz with soft grey veins (texture covers 1.2 x 1.2 m)
+const quartzTex = canvasTex(2048, (g, s) => {
+  g.fillStyle = '#efede9'; g.fillRect(0, 0, s, s);
+  const r = rng(21);
+  for (let i = 0; i < 30000; i++) { const v = 220 + r() * 30 | 0; g.fillStyle = `rgba(${v},${v},${v - 3},0.25)`; g.fillRect(r() * s, r() * s, 2, 2); }
+  g.lineCap = 'round';
+  for (let k = 0; k < 9; k++) {
+    let x = r() * s, y = -20, w = 1 + r() * 5;
+    const pts = [[x, y]]; while (y < s + 20) { x += (r() - 0.45) * 90; y += 30 + r() * 60; pts.push([x, y]); }
+    for (const [lw, a] of [[w * 4, 0.05], [w * 1.6, 0.12], [w * 0.6, 0.35]]) {
+      g.strokeStyle = `rgba(120,118,115,${a})`; g.lineWidth = lw; g.beginPath(); g.moveTo(...pts[0]);
+      for (const p of pts.slice(1)) g.lineTo(...p); g.stroke();
+    }
+  }
+});
+
+// floor: light natural oak planks, 1.8 m x 0.2 m (texture covers 1.8 x 1.8 m)
+const floorTex = canvasTex(2048, (g, s) => {
+  const r = rng(9), n = 9, h = s / n;
+  for (let j = 0; j < n; j++) {
+    const off = r() * s;
+    for (const x0 of [-off, s - off]) {
+      const v = r(); g.fillStyle = `rgb(${196 + v * 18 | 0},${170 + v * 16 | 0},${134 + v * 14 | 0})`;
+      g.fillRect(x0, j * h, s, h);
+      for (let i = 0; i < 90; i++) {
+        g.strokeStyle = `rgba(${r() < 0.5 ? '120,88,55' : '240,220,190'},${0.05 + r() * 0.1})`; g.lineWidth = 0.6 + r() * 1.8;
+        const y = j * h + r() * h; g.beginPath(); g.moveTo(x0, y);
+        for (let x = 0; x <= s; x += 40) g.lineTo(x0 + x, y + Math.sin(x * 0.01 + i) * 2); g.stroke();
+      }
+      g.fillStyle = 'rgba(80,60,40,0.55)'; g.fillRect(x0 + s - 1, j * h, 2, h);
+    }
+    g.fillStyle = 'rgba(80,60,40,0.5)'; g.fillRect(0, j * h, s, 2);
+  }
+});
+
+const hobTex = canvasTex(512, (g, s) => {
+  g.fillStyle = '#060607'; g.fillRect(0, 0, s, s);
+  g.strokeStyle = 'rgba(120,120,125,0.5)'; g.lineWidth = 3;
+  [[0.22, 0.32, 0.14], [0.22, 0.72, 0.12], [0.55, 0.5, 0.18], [0.84, 0.32, 0.11], [0.84, 0.72, 0.11]]
+    .forEach(([x, y, rr]) => { g.beginPath(); g.arc(x * s, y * s, rr * s, 0, Math.PI * 2); g.stroke(); });
+  g.fillStyle = 'rgba(170,170,175,0.7)';
+  for (let i = 0; i < 9; i++) g.fillRect(s * 0.3 + i * s * 0.045, s * 0.93, s * 0.02, s * 0.012);
+});
+
+// ---------- materials ----------
+const M = {
+  cash: new THREE.MeshPhysicalMaterial({ color: 0xd9cfc2, roughness: 0.62, sheen: 0.2, sheenColor: 0xffffff }),
+  oak: new THREE.MeshStandardMaterial({ map: oakTex, roughness: 0.55 }),
+  carcass: new THREE.MeshStandardMaterial({ color: 0xbdb5aa, roughness: 0.6 }),
+  quartz: new THREE.MeshPhysicalMaterial({ map: quartzTex, roughness: 0.14, clearcoat: 0.5, clearcoatRoughness: 0.1 }),
+  gola: new THREE.MeshStandardMaterial({ color: 0x0c0c0c, roughness: 0.45, metalness: 0.6 }),
+  plinth: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6, metalness: 0.3 }),
+  wall: new THREE.MeshStandardMaterial({ color: 0xeeebe6, roughness: 0.92 }),
+  ceiling: new THREE.MeshStandardMaterial({ color: 0xf6f5f2, roughness: 0.95 }),
+  floor: new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.42 }),
+  blackGlass: new THREE.MeshPhysicalMaterial({ color: 0x050506, roughness: 0.04, metalness: 0.1, clearcoat: 1 }),
+  hob: new THREE.MeshPhysicalMaterial({ map: hobTex, roughness: 0.05, clearcoat: 1 }),
+  matteBlack: new THREE.MeshStandardMaterial({ color: 0x121212, roughness: 0.45, metalness: 0.5 }),
+  sinkBlack: new THREE.MeshStandardMaterial({ color: 0x18181a, roughness: 0.65 }),
+  steel: new THREE.MeshStandardMaterial({ color: 0xb9bcbf, roughness: 0.25, metalness: 1 }),
+  led: new THREE.MeshBasicMaterial({ color: 0xfff1d6 }),
+  display: new THREE.MeshBasicMaterial({ color: 0xffb35c }),
+  displayW: new THREE.MeshBasicMaterial({ color: 0xdfefff }),
+  socket: new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.5 }),
+};
+for (const [k, v] of [['quartz', 1.0], ['blackGlass', 1.6], ['hob', 1.4], ['steel', 1.5], ['matteBlack', 1.0], ['floor', 0.7], ['oak', 0.5], ['cash', 0.4]]) { M[k].envMap = ENV; M[k].envMapIntensity = v; }
+
+// world-scaled UV box: texture tile = `tile` metres on every face
+function box(x0, x1, y0, y1, z0, z1, mat, opts = {}) {
+  const sx = x1 - x0, sy = y1 - y0, sz = z1 - z0;
+  const geo = new THREE.BoxGeometry(sx, sy, sz);
+  if (opts.tile) {
+    const t = opts.tile, uv = geo.attributes.uv;
+    // face order: +x,-x,+y,-y,+z,-z ; each 4 verts
+    const dims = [[sz, sy], [sz, sy], [sx, sz], [sx, sz], [sx, sy], [sx, sy]];
+    const o = opts.uvOff || [0, 0];
+    for (let f = 0; f < 6; f++) for (let v = 0; v < 4; v++) {
+      const i = f * 4 + v;
+      let u = uv.getX(i) * dims[f][0] / t, w = uv.getY(i) * dims[f][1] / t;
+      if (f === 4 || f === 5) { u += x0 / t; w += y0 / t; }
+      uv.setXY(i, u + o[0], w + o[1]);
+    }
+  }
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  m.castShadow = opts.cast !== false; m.receiveShadow = true;
+  scene.add(m); return m;
+}
+const G = 0.0035; // door gap
+const oakT = { tile: 0.6 }, qT = { tile: 1.2 };
+
+// ---------- room ----------
+const L = 4.17, CEIL = 2.77;
+{
+  const geo = new THREE.PlaneGeometry(12, 12); const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 12 / 1.8, uv.getY(i) * 12 / 1.8);
+  const f = new THREE.Mesh(geo, M.floor); f.rotation.x = -Math.PI / 2; f.position.set(2, 0, 4); f.receiveShadow = true; scene.add(f);
+}
+box(-0.1, L + 0.1, 0, CEIL, -0.1, 0, M.wall, { cast: false });            // kitchen wall
+box(-0.1, 0, 0, CEIL, 0, 8, M.wall, { cast: false });                     // left wall
+box(L, L + 0.1, 0, CEIL, 0, 1.35, M.wall, { cast: false });                // right wall up to the opening
+box(L, L + 0.1, 2.3, CEIL, 1.35, 2.35, M.wall, { cast: false });           // lintel over the opening
+box(L, L + 0.1, 0, CEIL, 2.35, 8, M.wall, { cast: false });
+box(L + 0.1, L + 2, 0, CEIL, 1.25, 1.35, M.wall, { cast: false });         // reveal / next room
+box(-0.1, L + 2, CEIL, CEIL + 0.05, -0.1, 8, M.ceiling, { cast: false });
+
+// ---------- base run x 0..2.97 ----------
+const BX = 2.97, TOP = 0.9;
+box(0, BX, 0, 0.1, 0, 0.54, M.plinth);
+box(0, BX, 0.1, 0.86, 0, 0.58, M.carcass);
+box(0, BX, 0.80, 0.86, 0.53, 0.585, M.gola);                 // top Gola for the whole run
+const drawers = (x0, x1) => {
+  box(x0 + G, x1 - G, 0.1, 0.40, 0.58, 0.6, M.cash);
+  box(x0, x1, 0.40, 0.46, 0.53, 0.585, M.gola);
+  box(x0 + G, x1 - G, 0.46, 0.80, 0.58, 0.6, M.cash);
+};
+drawers(0, 0.6);                                              // under the boiler
+drawers(0.6, 1.5);                                            // 900 mm pan drawers under the hob
+box(1.5 + G, 2.1 - G, 0.1, 0.80, 0.58, 0.6, M.cash);          // integrated dishwasher
+box(2.1 + G, 2.535 - G, 0.1, 0.80, 0.58, 0.6, M.cash);        // sink base, two doors
+box(2.535 + G, BX - G, 0.1, 0.80, 0.58, 0.6, M.cash);
+
+// quartz worktop with undermount sink and full-height quartz backsplash
+const SX0 = 2.31, SX1 = 2.79, SZ0 = 0.1, SZ1 = 0.5;
+box(0, SX0, 0.86, TOP, 0, 0.62, M.quartz, qT);
+box(SX1, BX, 0.86, TOP, 0, 0.62, M.quartz, qT);
+box(SX0, SX1, 0.86, TOP, 0, SZ0, M.quartz, qT);
+box(SX0, SX1, 0.86, TOP, SZ1, 0.62, M.quartz, qT);
+box(0, BX, TOP, 1.5, 0, 0.012, M.quartz, qT);
+// sink bowl
+box(SX0, SX1, 0.67, 0.68, SZ0, SZ1, M.sinkBlack);
+for (const [a, b, c, d] of [[SX0, SX0 + 0.01, SZ0, SZ1], [SX1 - 0.01, SX1, SZ0, SZ1], [SX0, SX1, SZ0, SZ0 + 0.01], [SX0, SX1, SZ1 - 0.01, SZ1]])
+  box(a, b, 0.67, 0.86, c, d, M.sinkBlack);
+// black faucet
+{
+  const fx = (SX0 + SX1) / 2, fz = 0.07;
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.026, 0.06, 32), M.matteBlack);
+  base.position.set(fx, TOP + 0.03, fz); base.castShadow = true; scene.add(base);
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(fx, TOP + 0.05, fz), new THREE.Vector3(fx, TOP + 0.3, fz), new THREE.Vector3(fx, TOP + 0.38, fz + 0.06),
+    new THREE.Vector3(fx, TOP + 0.37, fz + 0.16), new THREE.Vector3(fx, TOP + 0.3, fz + 0.21), new THREE.Vector3(fx, TOP + 0.22, fz + 0.215)]);
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.013, 20), M.matteBlack); tube.castShadow = true; scene.add(tube);
+}
+// hob 780 mm, centred over the pan drawers
+{ const hx = 1.05, hz = 0.32; box(hx - 0.39, hx + 0.39, TOP, TOP + 0.006, hz - 0.26, hz + 0.26, M.hob); }
+// black sockets on the backsplash (as on site)
+for (const [x, n] of [[0.55, 2], [2.0, 1]]) for (let i = 0; i < n; i++) box(x + i * 0.085, x + i * 0.085 + 0.08, 1.08, 1.16, 0.012, 0.022, M.socket, { cast: false });
+
+// ---------- uppers x 0..2.97, to the ceiling ----------
+const UY0 = 1.5;
+box(0, BX, UY0, CEIL, 0, 0.35, M.carcass);
+// left 600: boiler cabinet (open bottom + vent slot at the top)
+box(G, 0.6 - G, UY0 + 0.04, CEIL - 0.05, 0.35, 0.37, M.cash);
+box(0, 0.6, CEIL - 0.045, CEIL, 0.34, 0.36, M.plinth, { cast: false });
+// above hob: 900 with integrated hood strip
+box(0.6 + G, 1.05 - G, UY0 + 0.04, CEIL - G, 0.35, 0.37, M.cash);
+box(1.05 + G, 1.5 - G, UY0 + 0.04, CEIL - G, 0.35, 0.37, M.cash);
+box(0.62, 1.48, UY0, UY0 + 0.04, 0.02, 0.37, M.matteBlack);
+box(0.62, 1.48, UY0 - 0.005, UY0, 0.05, 0.34, M.steel, { cast: false });
+// rest: three doors
+for (let i = 0; i < 3; i++) { const a = 1.5 + i * 0.49; box(a + G, a + 0.49 - G, UY0 + 0.04, CEIL - G, 0.35, 0.37, M.cash); }
+box(1.5, BX, UY0, UY0 + 0.04, 0.33, 0.37, M.gola);            // bottom handle profile
+box(0, 0.6, UY0, UY0 + 0.04, 0.33, 0.37, M.gola);
+box(0.62, BX - 0.03, UY0 - 0.004, UY0, 0.04, 0.055, M.led, { cast: false });
+{ const ra = new THREE.RectAreaLight(0xffe7c4, 6, 2.6, 0.04); ra.position.set(1.6, UY0 - 0.01, 0.06); ra.lookAt(1.6, 0, 0.14); scene.add(ra); }
+
+// ---------- tall oak columns x 2.97..4.17 ----------
+const TX = BX, TM = BX + 0.6;
+box(TX, L, 0, 0.1, 0, 0.56, M.plinth);
+box(TX, L, 0.1, CEIL, 0, 0.6, M.carcass);
+box(TX - 0.019, TX + 0.001, 0.1, CEIL, 0, 0.62, M.oak, oakT);   // visible oak side panel by the worktop
+// column 1: drawer + oven at eye level + microwave + top door
+box(TX + G, TM - G, 0.1, 0.88, 0.6, 0.62, M.oak, oakT);
+{ const y0 = 0.885, y1 = 1.48;
+  box(TX + G, TM - G, y0, y1, 0.6, 0.622, M.blackGlass);
+  box(TX + 0.05, TM - 0.05, y1 - 0.125, y1 - 0.11, 0.622, 0.652, M.steel);
+  box(TX + 0.26, TX + 0.34, y1 - 0.055, y1 - 0.03, 0.622, 0.6235, M.display, { cast: false }); }
+{ const y0 = 1.485, y1 = 1.865;
+  box(TX + G, TM - G, y0, y1, 0.6, 0.622, M.blackGlass);
+  box(TM - 0.13, TM - 0.02, y0 + 0.02, y1 - 0.02, 0.622, 0.6225, M.matteBlack, { cast: false });
+  box(TM - 0.11, TM - 0.04, y1 - 0.07, y1 - 0.05, 0.6225, 0.624, M.displayW, { cast: false }); }
+box(TX + G, TM - G, 1.87, CEIL - G, 0.6, 0.62, M.oak, oakT);
+// column 2: integrated fridge-freezer
+box(TM + G, L - G, 0.1, 1.86, 0.6, 0.62, M.oak, oakT);
+box(TM + G, L - G, 1.865, CEIL - G, 0.6, 0.62, M.oak, oakT);
+// slim black vertical handle profiles
+for (const [x, y0, y1] of [[TM - 0.025, 0.12, 0.86], [TM + 0.008, 0.12, 1.84], [TM - 0.025, 1.9, 2.3], [TM + 0.008, 1.9, 2.3]])
+  box(x, x + 0.017, y0, y1, 0.62, 0.635, M.matteBlack);
+
+// ---------- island ----------
+const IX0 = 0.785, IX1 = 3.385, IZ0 = 1.65, IZ1 = 2.6;
+box(IX0 + 0.02, IX1 - 0.02, 0, 0.08, IZ0 + 0.06, IZ1 - 0.06, M.plinth);
+box(IX0 + 0.02, IX1 - 0.02, 0.08, TOP - 0.03, IZ0, IZ1, M.oak, oakT);
+// fronts facing the kitchen: three drawer stacks with black Gola
+box(IX0 + 0.02, IX1 - 0.02, 0.43, 0.49, IZ0 - 0.005, IZ0 + 0.05, M.gola);
+box(IX0 + 0.02, IX1 - 0.02, TOP - 0.09, TOP - 0.03, IZ0 - 0.005, IZ0 + 0.05, M.gola);
+// quartz top + waterfall ends
+box(IX0, IX1, TOP - 0.03, TOP + 0.01, IZ0 - 0.02, IZ1 + 0.02, M.quartz, qT);
+box(IX0, IX0 + 0.04, 0, TOP - 0.03, IZ0 - 0.02, IZ1 + 0.02, M.quartz, qT);
+box(IX1 - 0.04, IX1, 0, TOP - 0.03, IZ0 - 0.02, IZ1 + 0.02, M.quartz, qT);
+// vertical oak slats on the room side
+for (let x = IX0 + 0.06; x < IX1 - 0.07; x += 0.045) box(x, x + 0.03, 0.09, TOP - 0.04, IZ1, IZ1 + 0.018, M.oak, { tile: 0.6, uvOff: [x, 0] });
+
+// ---------- pendants (three black tubes, as already hung on site) ----------
+const PZ = (IZ0 + IZ1) / 2;
+for (const x of [1.25, 2.085, 2.92]) {
+  const bottom = TOP + 0.78, h = 0.32;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, h, 32), M.matteBlack);
+  body.position.set(x, bottom + h / 2, PZ); body.castShadow = true; scene.add(body);
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.031, 0.004, 32), M.led); ring.position.set(x, bottom - 0.001, PZ); scene.add(ring);
+  const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, CEIL - bottom - h, 6), M.matteBlack);
+  cable.position.set(x, (CEIL + bottom + h) / 2, PZ); scene.add(cable);
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.02, 24), M.matteBlack); cup.position.set(x, CEIL - 0.01, PZ); scene.add(cup);
+  const sp = new THREE.SpotLight(0xffe2bc, 2.2, 3, Math.PI / 7, 0.6, 1.5);
+  sp.position.set(x, bottom - 0.01, PZ); sp.target.position.set(x, 0, PZ); scene.add(sp, sp.target);
+}
+
+// ---------- decor ----------
+{
+  const r = rng(11);
+  // bar stools on the room side
+  for (const x of [1.4, 2.085, 2.77]) {
+    const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.18, 0.06, 40), M.oak); seat.position.set(x, 0.66, IZ1 + 0.38); seat.castShadow = true; scene.add(seat);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.6, 16), M.matteBlack); stem.position.set(x, 0.33, IZ1 + 0.38); stem.castShadow = true; scene.add(stem);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.015, 40), M.matteBlack); foot.position.set(x, 0.008, IZ1 + 0.38); scene.add(foot);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.008, 8, 40), M.matteBlack); ring.rotation.x = Math.PI / 2; ring.position.set(x, 0.24, IZ1 + 0.38); scene.add(ring);
+  }
+  // bowl with lemons on the island
+  const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.15, 40, 20, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x2a2826, roughness: 0.5, side: THREE.DoubleSide }));
+  bowl.scale.y = 0.5; bowl.position.set(1.6, TOP + 0.085, PZ); bowl.castShadow = true; scene.add(bowl);
+  const lemonM = new THREE.MeshStandardMaterial({ color: 0xe8c43a, roughness: 0.6 });
+  for (let i = 0; i < 5; i++) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.035, 20, 14), lemonM); l.scale.set(1, 0.85, 1.2); l.position.set(1.6 + (r() - 0.5) * 0.12, TOP + 0.06 + r() * 0.04, PZ + (r() - 0.5) * 0.12); l.castShadow = true; scene.add(l); }
+  // vase with branches
+  const vase = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.3, 32), new THREE.MeshStandardMaterial({ color: 0xe8e2d8, roughness: 0.7 }));
+  vase.position.set(2.75, TOP + 0.16, PZ - 0.05); vase.castShadow = true; scene.add(vase);
+  const leafM = new THREE.MeshStandardMaterial({ color: 0x55703f, roughness: 0.7 });
+  for (let i = 0; i < 40; i++) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), leafM); l.scale.set(1, 0.3, 0.6); const a = r() * 6.28, rr = 0.05 + r() * 0.16; l.position.set(2.75 + Math.cos(a) * rr * 0.7, TOP + 0.35 + r() * 0.35, PZ - 0.05 + Math.sin(a) * rr * 0.5); l.rotation.set(r() * 3, r() * 3, r() * 3); l.castShadow = true; scene.add(l); }
+  // worktop: board + oil bottles
+  box(0.08, 0.48, TOP, TOP + 0.02, 0.03, 0.33, M.oak, { tile: 0.6 }).rotation.x = -0.12;
+  const oilM = new THREE.MeshPhysicalMaterial({ color: 0x6b5a2a, roughness: 0.1, transparent: true, opacity: 0.8 });
+  [0, 0.07].forEach((dx, i) => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.2 - i * 0.03, 24), oilM); b.position.set(1.65 + dx, TOP + 0.1 - i * 0.015, 0.1); b.castShadow = true; scene.add(b); });
+}
+
+// ---------- lighting ----------
+scene.add(new THREE.HemisphereLight(0xfffaf2, 0xe0d6c8, 0.9));
+const sun = new THREE.DirectionalLight(0xfff0dd, 3.0);   // daylight from a window behind-left of the camera
+sun.position.set(-3.5, 3.6, 6.5); sun.target.position.set(2.2, 0.6, 0.8); scene.add(sun.target);
+sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096); sun.shadow.radius = 8; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 0.5, far: 20 });
+scene.add(sun);
+for (const [x, z] of [[0.7, 0.95], [2.0, 0.95], [3.4, 1.1], [1.0, 3.6], [3.2, 3.6]]) {
+  const sp = new THREE.SpotLight(0xfff0dc, 2.2, 6, Math.PI / 3.2, 0.8, 1.6);
+  sp.position.set(x, CEIL - 0.02, z); sp.target.position.set(x, 0, z - 0.3); scene.add(sp, sp.target);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.04, 24), M.led); disc.rotation.x = Math.PI / 2; disc.position.set(x, CEIL - 0.001, z); scene.add(disc);
+}
+const fill = new THREE.RectAreaLight(0xffffff, 0.5, 4.5, 2.6); fill.position.set(2.1, 1.5, 7); fill.lookAt(2.1, 1.2, 0); scene.add(fill);
+
+// ---------- camera ----------
+const cam = new THREE.PerspectiveCamera(46, W / H, 0.05, 50);
+if (VIEW === 'side') { cam.position.set(0.4, 1.6, 4.6); cam.lookAt(2.6, 1.15, 0.8); }
+else { cam.position.set(1.9, 1.78, 7.0); cam.lookAt(2.08, 1.3, 0.6); }
+cam.updateProjectionMatrix();
+
+renderer.render(scene, cam);
+window.__done = true;
+</script></body></html>
