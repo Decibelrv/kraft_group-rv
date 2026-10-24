@@ -5,8 +5,8 @@
 </head><body>
 <script type="module">
 // Kitchen proposal for a 4170 x 2770 mm wall with a wall-hung gas boiler at the top left.
-// Straight run: base + uppers to ceiling (boiler hidden in the left upper), tall oak columns on the right
-// (oven at eye level + microwave, integrated fridge), island under the three pendants.
+// Straight run over the whole wall: base + uppers to ceiling (boiler hidden in the left upper), oven under the hob,
+// built-in microwave in the last upper, recirculating hood. No tall columns, no island.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
@@ -167,7 +167,7 @@ box(L + 0.1, L + 2, 0, CEIL, 1.25, 1.35, M.wall, { cast: false });         // re
 box(-0.1, L + 2, CEIL, CEIL + 0.05, -0.1, 8, M.ceiling, { cast: false });
 
 // ---------- base run x 0..2.97 ----------
-const BX = 2.97, TOP = 0.9;
+const BX = L, TOP = 0.9;   // one straight run along the whole 4170 mm wall (no tall columns, no island)
 box(0, BX, 0, 0.1, 0, 0.54, M.plinth);
 box(0, BX, 0.1, 0.86, 0, 0.58, M.carcass);
 box(0, BX, 0.80, 0.86, 0.53, 0.585, M.gola);                 // top Gola for the whole run
@@ -178,11 +178,18 @@ const drawers = (x0, x1) => {
 };
 // 0..1.2: doors only - boiler pipework, main water valve + filter (valve ~1060 mm from the left wall)
 box(0 + G, 0.6 - G, 0.1, 0.80, 0.58, 0.6, M.cash);
-box(0.6 + G, 1.2 - G, 0.1, 0.80, 0.58, 0.6, M.cash);           // under the hob
+box(0.6 + G, 1.2 - G, 0.1, 0.80, 0.58, 0.6, M.cash);
 drawers(1.2, 1.77);
 box(1.77 + G, 2.07 - G, 0.1, 0.80, 0.58, 0.6, M.cash);         // sink base, two doors (supply/drain ~2.2 m)
 box(2.07 + G, 2.37 - G, 0.1, 0.80, 0.58, 0.6, M.cash);
-box(2.37 + G, BX - G, 0.1, 0.80, 0.58, 0.6, M.cash);           // integrated dishwasher
+box(2.37 + G, 2.97 - G, 0.1, 0.80, 0.58, 0.6, M.cash);         // integrated dishwasher
+// 2.97..3.57: built-in oven under the hob
+box(2.97 + G, 3.57 - G, 0.1, 0.19, 0.58, 0.6, M.cash);
+{ const x0 = 2.97 + G, x1 = 3.57 - G, y0 = 0.195, y1 = 0.79;
+  box(x0, x1, y0, y1, 0.58, 0.602, M.blackGlass);
+  box(x0 + 0.05, x1 - 0.05, y1 - 0.075, y1 - 0.06, 0.602, 0.632, M.steel);
+  box(x0 + 0.26, x0 + 0.34, y1 - 0.04, y1 - 0.02, 0.602, 0.6035, M.display, { cast: false }); }
+drawers(3.57, BX);
 
 // quartz worktop with undermount sink and full-height quartz backsplash
 const SX0 = 1.84, SX1 = 2.30, SZ0 = 0.1, SZ1 = 0.5;
@@ -205,69 +212,37 @@ for (const [a, b, c, d] of [[SX0, SX0 + 0.01, SZ0, SZ1], [SX1 - 0.01, SX1, SZ0, 
     new THREE.Vector3(fx, TOP + 0.37, fz + 0.16), new THREE.Vector3(fx, TOP + 0.3, fz + 0.21), new THREE.Vector3(fx, TOP + 0.22, fz + 0.215)]);
   const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.013, 20), M.matteBlack); tube.castShadow = true; scene.add(tube);
 }
-// hob 780 mm, centred over the pan drawers
-{ const hx = 0.9, hz = 0.32; box(hx - 0.295, hx + 0.295, TOP, TOP + 0.006, hz - 0.26, hz + 0.26, M.hob); }
-// black sockets on the backsplash (as on site)
-for (const [x, n] of [[1.4, 2], [2.62, 2]]) for (let i = 0; i < n; i++) box(x + i * 0.085, x + i * 0.085 + 0.08, 1.08, 1.16, 0.012, 0.022, M.socket, { cast: false });
+// black glass hob 600 mm over the oven
+{ const hx = 3.27, hz = 0.32; box(hx - 0.295, hx + 0.295, TOP, TOP + 0.006, hz - 0.26, hz + 0.26, M.hob); }
+// black sockets on the backsplash (kept 300+ mm clear of the hob)
+for (const [x, n] of [[1.4, 2], [2.55, 2], [3.82, 2]]) for (let i = 0; i < n; i++) box(x + i * 0.085, x + i * 0.085 + 0.08, 1.08, 1.16, 0.012, 0.022, M.socket, { cast: false });
 
-// ---------- uppers x 0..2.97, to the ceiling ----------
-const UY0 = 1.5;
+// ---------- uppers x 0..4.17, to the ceiling ----------
+const UY0 = 1.5, UW = (BX - 0.6) / 6;
 box(0, BX, UY0, CEIL, 0, 0.35, M.carcass);
 // left 600: boiler cabinet (open bottom + vent slot at the top)
 box(G, 0.6 - G, UY0 + 0.04, CEIL - 0.05, 0.35, 0.37, M.cash);
 box(0, 0.6, CEIL - 0.045, CEIL, 0.34, 0.36, M.plinth, { cast: false });
-// above hob: 600 with integrated hood strip (duct runs to the wall opening at ~1.2 m)
-box(0.6 + G, 1.2 - G, UY0 + 0.04, CEIL - G, 0.35, 0.37, M.cash);
-box(0.62, 1.18, UY0, UY0 + 0.04, 0.02, 0.37, M.matteBlack);
-box(0.62, 1.18, UY0 - 0.005, UY0, 0.05, 0.34, M.steel, { cast: false });
-// rest: three doors
-for (let i = 0; i < 3; i++) { const a = 1.2 + i * 0.59; box(a + G, a + 0.59 - G, UY0 + 0.04, CEIL - G, 0.35, 0.37, M.cash); }
-box(1.2, BX, UY0, UY0 + 0.04, 0.33, 0.37, M.gola);            // bottom handle profile
 box(0, 0.6, UY0, UY0 + 0.04, 0.33, 0.37, M.gola);
+// six doors; #5 over the hob hides a recirculating hood (the wall opening is a sewer stack, no duct)
+for (let i = 0; i < 6; i++) {
+  const a = 0.6 + i * UW;
+  if (i === 5) { // built-in microwave at the bottom of the last upper, door above it
+    box(a + G, a + UW - G, UY0, UY0 + 0.38, 0.35, 0.372, M.blackGlass);
+    box(a + UW - 0.12, a + UW - 0.05, UY0 + 0.3, UY0 + 0.32, 0.372, 0.374, M.displayW, { cast: false });
+    box(a + 0.04, a + 0.44, UY0 + 0.04, UY0 + 0.05, 0.372, 0.392, M.steel);
+    box(a + G, a + UW - G, UY0 + 0.385, CEIL - G, 0.35, 0.37, M.cash);
+  } else box(a + G, a + UW - G, UY0 + 0.04, CEIL - G, 0.35, 0.37, M.cash);
+}
+box(0.6, 0.6 + 5 * UW, UY0, UY0 + 0.04, 0.33, 0.37, M.gola);   // bottom handle profile
+box(0.6 + 4 * UW + 0.02, 0.6 + 5 * UW - 0.02, UY0 - 0.04, UY0, 0.02, 0.35, M.matteBlack);   // hood
 box(0.62, BX - 0.03, UY0 - 0.004, UY0, 0.04, 0.055, M.led, { cast: false });
-{ const ra = new THREE.RectAreaLight(0xffe7c4, 6, 2.6, 0.04); ra.position.set(1.6, UY0 - 0.01, 0.06); ra.lookAt(1.6, 0, 0.14); scene.add(ra); }
-
-// ---------- tall oak columns x 2.97..4.17 ----------
-const TX = BX, TM = BX + 0.6;
-box(TX, L, 0, 0.1, 0, 0.56, M.plinth);
-box(TX, L, 0.1, CEIL, 0, 0.6, M.carcass);
-box(TX - 0.019, TX + 0.001, 0.1, CEIL, 0, 0.62, M.oak, oakT);   // visible oak side panel by the worktop
-// column 1: drawer + oven at eye level + microwave + top door
-box(TX + G, TM - G, 0.1, 0.88, 0.6, 0.62, M.oak, oakT);
-{ const y0 = 0.885, y1 = 1.48;
-  box(TX + G, TM - G, y0, y1, 0.6, 0.622, M.blackGlass);
-  box(TX + 0.05, TM - 0.05, y1 - 0.125, y1 - 0.11, 0.622, 0.652, M.steel);
-  box(TX + 0.26, TX + 0.34, y1 - 0.055, y1 - 0.03, 0.622, 0.6235, M.display, { cast: false }); }
-{ const y0 = 1.485, y1 = 1.865;
-  box(TX + G, TM - G, y0, y1, 0.6, 0.622, M.blackGlass);
-  box(TM - 0.13, TM - 0.02, y0 + 0.02, y1 - 0.02, 0.622, 0.6225, M.matteBlack, { cast: false });
-  box(TM - 0.11, TM - 0.04, y1 - 0.07, y1 - 0.05, 0.6225, 0.624, M.displayW, { cast: false }); }
-box(TX + G, TM - G, 1.87, CEIL - G, 0.6, 0.62, M.oak, oakT);
-// column 2: integrated fridge-freezer
-box(TM + G, L - G, 0.1, 1.86, 0.6, 0.62, M.oak, oakT);
-box(TM + G, L - G, 1.865, CEIL - G, 0.6, 0.62, M.oak, oakT);
-// slim black vertical handle profiles
-for (const [x, y0, y1] of [[TM - 0.025, 0.12, 0.86], [TM + 0.008, 0.12, 1.84], [TM - 0.025, 1.9, 2.3], [TM + 0.008, 1.9, 2.3]])
-  box(x, x + 0.017, y0, y1, 0.62, 0.635, M.matteBlack);
-
-// ---------- island ----------
-const IX0 = 0.785, IX1 = 3.385, IZ0 = 1.65, IZ1 = 2.6;
-box(IX0 + 0.02, IX1 - 0.02, 0, 0.08, IZ0 + 0.06, IZ1 - 0.06, M.plinth);
-box(IX0 + 0.02, IX1 - 0.02, 0.08, TOP - 0.03, IZ0, IZ1, M.oak, oakT);
-// fronts facing the kitchen: three drawer stacks with black Gola
-box(IX0 + 0.02, IX1 - 0.02, 0.43, 0.49, IZ0 - 0.005, IZ0 + 0.05, M.gola);
-box(IX0 + 0.02, IX1 - 0.02, TOP - 0.09, TOP - 0.03, IZ0 - 0.005, IZ0 + 0.05, M.gola);
-// quartz top + waterfall ends
-box(IX0, IX1, TOP - 0.03, TOP + 0.01, IZ0 - 0.02, IZ1 + 0.02, M.quartz, qT);
-box(IX0, IX0 + 0.04, 0, TOP - 0.03, IZ0 - 0.02, IZ1 + 0.02, M.quartz, qT);
-box(IX1 - 0.04, IX1, 0, TOP - 0.03, IZ0 - 0.02, IZ1 + 0.02, M.quartz, qT);
-// vertical oak slats on the room side
-for (let x = IX0 + 0.06; x < IX1 - 0.07; x += 0.045) box(x, x + 0.03, 0.09, TOP - 0.04, IZ1, IZ1 + 0.018, M.oak, { tile: 0.6, uvOff: [x, 0] });
+{ const ra = new THREE.RectAreaLight(0xffe7c4, 6, 3.6, 0.04); ra.position.set(2.1, UY0 - 0.01, 0.06); ra.lookAt(2.1, 0, 0.14); scene.add(ra); }
 
 // ---------- pendants (three black tubes, as already hung on site) ----------
-const PZ = (IZ0 + IZ1) / 2;
+const PZ = 2.125;
 for (const x of [1.25, 2.085, 2.92]) {
-  const bottom = TOP + 0.78, h = 0.32;
+  const bottom = 1.95, h = 0.32;
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, h, 32), M.matteBlack);
   body.position.set(x, bottom + h / 2, PZ); body.castShadow = true; scene.add(body);
   const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.031, 0.004, 32), M.led); ring.position.set(x, bottom - 0.001, PZ); scene.add(ring);
@@ -281,27 +256,14 @@ for (const x of [1.25, 2.085, 2.92]) {
 // ---------- decor ----------
 {
   const r = rng(11);
-  // bar stools on the room side
-  for (const x of [1.4, 2.085, 2.77]) {
-    const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.18, 0.06, 40), M.oak); seat.position.set(x, 0.66, IZ1 + 0.38); seat.castShadow = true; scene.add(seat);
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.6, 16), M.matteBlack); stem.position.set(x, 0.33, IZ1 + 0.38); stem.castShadow = true; scene.add(stem);
-    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.015, 40), M.matteBlack); foot.position.set(x, 0.008, IZ1 + 0.38); scene.add(foot);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.008, 8, 40), M.matteBlack); ring.rotation.x = Math.PI / 2; ring.position.set(x, 0.24, IZ1 + 0.38); scene.add(ring);
-  }
-  // bowl with lemons on the island
-  const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.15, 40, 20, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x2a2826, roughness: 0.5, side: THREE.DoubleSide }));
-  bowl.scale.y = 0.5; bowl.position.set(1.6, TOP + 0.085, PZ); bowl.castShadow = true; scene.add(bowl);
-  const lemonM = new THREE.MeshStandardMaterial({ color: 0xe8c43a, roughness: 0.6 });
-  for (let i = 0; i < 5; i++) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.035, 20, 14), lemonM); l.scale.set(1, 0.85, 1.2); l.position.set(1.6 + (r() - 0.5) * 0.12, TOP + 0.06 + r() * 0.04, PZ + (r() - 0.5) * 0.12); l.castShadow = true; scene.add(l); }
-  // vase with branches
-  const vase = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.3, 32), new THREE.MeshStandardMaterial({ color: 0xe8e2d8, roughness: 0.7 }));
-  vase.position.set(2.75, TOP + 0.16, PZ - 0.05); vase.castShadow = true; scene.add(vase);
-  const leafM = new THREE.MeshStandardMaterial({ color: 0x55703f, roughness: 0.7 });
-  for (let i = 0; i < 40; i++) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), leafM); l.scale.set(1, 0.3, 0.6); const a = r() * 6.28, rr = 0.05 + r() * 0.16; l.position.set(2.75 + Math.cos(a) * rr * 0.7, TOP + 0.35 + r() * 0.35, PZ - 0.05 + Math.sin(a) * rr * 0.5); l.rotation.set(r() * 3, r() * 3, r() * 3); l.castShadow = true; scene.add(l); }
-  // worktop: board + oil bottles
-  box(0.08, 0.48, TOP, TOP + 0.02, 0.03, 0.33, M.oak, { tile: 0.6 }).rotation.x = -0.12;
+  // oak board + oil bottles left of the sink, small plant at the right end
+  box(0.75, 1.15, TOP, TOP + 0.02, 0.03, 0.33, M.oak, { tile: 0.6 }).rotation.x = -0.12;
   const oilM = new THREE.MeshPhysicalMaterial({ color: 0x6b5a2a, roughness: 0.1, transparent: true, opacity: 0.8 });
-  [0, 0.07].forEach((dx, i) => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.2 - i * 0.03, 24), oilM); b.position.set(1.65 + dx, TOP + 0.1 - i * 0.015, 0.1); b.castShadow = true; scene.add(b); });
+  [0, 0.07].forEach((dx, i) => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.2 - i * 0.03, 24), oilM); b.position.set(1.4 + dx, TOP + 0.1 - i * 0.015, 0.1); b.castShadow = true; scene.add(b); });
+  const vase = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.065, 0.24, 32), new THREE.MeshStandardMaterial({ color: 0xe8e2d8, roughness: 0.7 }));
+  vase.position.set(3.98, TOP + 0.12, 0.2); vase.castShadow = true; scene.add(vase);
+  const leafM = new THREE.MeshStandardMaterial({ color: 0x55703f, roughness: 0.7 });
+  for (let i = 0; i < 40; i++) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), leafM); l.scale.set(1, 0.3, 0.6); const a = r() * 6.28, rr = 0.04 + r() * 0.13; l.position.set(3.98 + Math.cos(a) * rr * 0.6, TOP + 0.28 + r() * 0.3, 0.2 + Math.sin(a) * rr * 0.5); l.rotation.set(r() * 3, r() * 3, r() * 3); l.castShadow = true; scene.add(l); }
 }
 
 // ---------- lighting ----------
@@ -320,8 +282,8 @@ const fill = new THREE.RectAreaLight(0xffffff, 0.5, 4.5, 2.6); fill.position.set
 
 // ---------- camera ----------
 const cam = new THREE.PerspectiveCamera(46, W / H, 0.05, 50);
-if (VIEW === 'side') { cam.position.set(0.4, 1.6, 4.6); cam.lookAt(2.6, 1.15, 0.8); }
-else { cam.position.set(1.9, 1.78, 7.0); cam.lookAt(2.08, 1.3, 0.6); }
+if (VIEW === 'side') { cam.position.set(0.55, 1.6, 3.3); cam.lookAt(2.9, 1.15, 0.2); }
+else { cam.position.set(2.085, 1.6, 5.3); cam.lookAt(2.085, 1.3, 0.3); }
 cam.updateProjectionMatrix();
 
 // ?pt=<samples> renders with the path tracer (global illumination, soft shadows, real reflections)

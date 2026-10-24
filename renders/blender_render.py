@@ -47,9 +47,12 @@ for mat in bpy.data.materials:
         b.inputs['Emission Strength'].default_value = 25
     elif n in ('display', 'displayW'):
         b.inputs['Emission Strength'].default_value = 6
-    elif n in ('blackGlass', 'hob'):
+    elif n == 'blackGlass':
         b.inputs['Roughness'].default_value = 0.03
         b.inputs['Coat Weight'].default_value = 1.0
+    elif n == 'hob':             # satin black glass: no mirror-white glare from the backsplash
+        b.inputs['Roughness'].default_value = 0.18
+        b.inputs['Specular IOR Level'].default_value = 0.3
 
 # ---------- lights ----------
 def light(kind, name, loc, power, rot=(0, 0, 0), **kw):
@@ -64,9 +67,9 @@ for i, (x, z) in enumerate([(0.7, 0.95), (2.0, 0.95), (3.4, 1.1), (1.0, 3.6), (3
     light('SPOT', f'down{i}', P(x, CEIL - 0.03, z), 45, spot_size=math.radians(100), spot_blend=0.9,
           shadow_soft_size=0.04, color=(1.0, 0.92, 0.82))
 for i, x in enumerate([1.25, 2.085, 2.92]):       # three black tube pendants
-    light('SPOT', f'pend{i}', P(x, 1.665, 2.125), 22, spot_size=math.radians(55), spot_blend=0.7,
+    light('SPOT', f'pend{i}', P(x, 1.935, 2.125), 22, spot_size=math.radians(55), spot_blend=0.7,
           shadow_soft_size=0.025, color=(1.0, 0.88, 0.74))
-for i in range(5):                                 # LED strip under the uppers
+for i in range(8):                                 # LED strip under the uppers
     light('AREA', f'led{i}', P(0.35 + i * 0.52, 1.49, 0.06), 6, shape='RECTANGLE', size=0.5, size_y=0.02,
           color=(1.0, 0.9, 0.78))
 # large soft fill from the open room side (behind the camera), like a big window
