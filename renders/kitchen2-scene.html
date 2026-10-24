@@ -1,7 +1,7 @@
 <!doctype html>
 <html><head><meta charset="utf-8">
 <style>html,body{margin:0;background:#000;overflow:hidden}</style>
-<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/","three-gpu-pathtracer":"./node_modules/three-gpu-pathtracer/build/index.module.js","three-mesh-bvh":"./node_modules/three-mesh-bvh/build/index.module.js"}}</script>
 </head><body>
 <script type="module">
 // Kitchen proposal for a 4170 x 2770 mm wall with a wall-hung gas boiler at the top left.
@@ -119,11 +119,12 @@ const M = {
   matteBlack: new THREE.MeshStandardMaterial({ color: 0x121212, roughness: 0.45, metalness: 0.5 }),
   sinkBlack: new THREE.MeshStandardMaterial({ color: 0x18181a, roughness: 0.65 }),
   steel: new THREE.MeshStandardMaterial({ color: 0xb9bcbf, roughness: 0.25, metalness: 1 }),
-  led: new THREE.MeshBasicMaterial({ color: 0xfff1d6 }),
-  display: new THREE.MeshBasicMaterial({ color: 0xffb35c }),
-  displayW: new THREE.MeshBasicMaterial({ color: 0xdfefff }),
+  led: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xfff1d6, emissiveIntensity: 4 }),
+  display: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffb35c, emissiveIntensity: 2 }),
+  displayW: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xdfefff, emissiveIntensity: 2 }),
   socket: new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.5 }),
 };
+for (const [k, v] of Object.entries(M)) v.name = k;
 for (const [k, v] of [['quartz', 1.0], ['blackGlass', 1.6], ['hob', 1.4], ['steel', 1.5], ['matteBlack', 1.0], ['floor', 0.7], ['oak', 0.5], ['cash', 0.4]]) { M[k].envMap = ENV; M[k].envMapIntensity = v; }
 
 // world-scaled UV box: texture tile = `tile` metres on every face
@@ -323,6 +324,30 @@ if (VIEW === 'side') { cam.position.set(0.4, 1.6, 4.6); cam.lookAt(2.6, 1.15, 0.
 else { cam.position.set(1.9, 1.78, 7.0); cam.lookAt(2.08, 1.3, 0.6); }
 cam.updateProjectionMatrix();
 
-renderer.render(scene, cam);
+// ?pt=<samples> renders with the path tracer (global illumination, soft shadows, real reflections)
+const PT = +(q.get('pt') || 0);
+if (PT) {
+  const { WebGLPathTracer } = await import('three-gpu-pathtracer');
+  const tracer = new WebGLPathTracer(renderer);
+  tracer.tiles.set(3, 3);
+  tracer.bounces = +(q.get('bounces') || 5);
+  tracer.filterGlossyFactor = 0.5;
+  tracer.minSamples = 1;
+  tracer.renderToCanvas = true;
+  tracer.setScene(scene, cam);
+  const t0 = performance.now();
+  while (tracer.samples < PT) { tracer.renderSample(); if ((tracer.samples | 0) % 4 === 0) await new Promise(r => setTimeout(r)); }
+  console.log('samples', tracer.samples, 'sec', ((performance.now() - t0) / 1000).toFixed(1));
+} else if (q.get('export')) {
+  // ?export=1 -> GLB of the scene + camera for the Blender/Cycles photo render (renders/blender_render.py)
+  const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
+  cam.name = 'Camera'; scene.add(cam);
+  const glb = await new GLTFExporter().parseAsync(scene, { binary: true, onlyVisible: true, maxTextureSize: 2048 });
+  let bin = ''; const u8 = new Uint8Array(glb);
+  for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+  window.__glb = btoa(bin);
+} else {
+  renderer.render(scene, cam);
+}
 window.__done = true;
 </script></body></html>
